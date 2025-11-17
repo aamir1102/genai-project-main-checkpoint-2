@@ -928,13 +928,18 @@ def main():
                     response = result['response']
                     sources = result.get('sources', [])
                     
-                    # Format sources as markdown links
-                    if sources:
-                        sources_text = "\n\n**Sources:**\n"
-                        sources_text += "\n".join([f"- [{url}]({url})" for url in sources])
-                        response += sources_text
-                        
-                    st.session_state.generated.append(response)
+                    # Format the response with styled sources
+                    response_data = {
+                        'response': response,
+                        'sources': [{
+                            'source': url.split('//')[-1].split('/')[0],  # Extract domain
+                            'url': url,
+                            'is_link': True,
+                            'page_content': ''
+                        } for url in sources]
+                    }
+                    
+                    st.session_state.generated.append(response_data)
             else:
                 # Use document-based RAG
                 with st.spinner("Analyzing your question..."):
@@ -991,23 +996,89 @@ def main():
                 
                 # Display sources if available
                 if sources:
-                    sources_html = "<div style='margin-top: 12px; padding-top: 12px; border-top: 1px dashed #e5e7eb;'>"
-                    sources_html += "<div style='font-size: 0.8rem; color: #6b7280; margin-bottom: 8px; font-weight: 500;'>📚 Sources:</div>"
-                    sources_html += "<div style='display: flex; flex-direction: column; gap: 8px;'>"
-                    
-                    for source in sources:
-                        source_name = source.get('source', 'Unknown Source')
-                        preview = source.get('page_content', '').replace('"', '&quot;').replace("'", "&#39;")
+                    with st.container():
+                        st.markdown("""
+                        <style>
+                            .source-container {
+                                margin-top: 12px;
+                                padding-top: 12px;
+                                border-top: 1px dashed #e5e7eb;
+                            }
+                            .source-header {
+                                font-size: 0.8rem;
+                                color: #6b7280;
+                                margin-bottom: 8px;
+                                font-weight: 500;
+                            }
+                            .sources-list {
+                                display: flex;
+                                flex-direction: column;
+                                gap: 8px;
+                            }
+                            .source-card {
+                                background: #f9fafb;
+                                border-radius: 8px;
+                                padding: 12px;
+                                border: 1px solid #e5e7eb;
+                            }
+                            .source-link {
+                                color: #4f46e5;
+                                text-decoration: none;
+                                display: flex;
+                                align-items: center;
+                            }
+                            .source-link:hover {
+                                text-decoration: underline;
+                            }
+                            .source-domain {
+                                font-size: 0.8rem;
+                                font-weight: 500;
+                            }
+                            .source-preview {
+                                font-size: 0.75rem;
+                                color: #6b7280;
+                                margin-top: 4px;
+                            }
+                            .external-icon {
+                                margin-left: 6px;
+                                width: 12px;
+                                height: 12px;
+                            }
+                        </style>
+                        <div class="source-container">
+                            <div class="source-header">📚 Sources:</div>
+                            <div class="sources-list">
+                        """, unsafe_allow_html=True)
                         
-                        sources_html += f"""
-                        <div style='background: #f9fafb; border-radius: 8px; padding: 10px; border: 1px solid #e5e7eb;'>
-                            <div style='font-size: 0.8rem; font-weight: 500; color: #4b5563;'>{source_name}</div>
-                            <div style='font-size: 0.75rem; color: #6b7280; margin-top: 4px;'>{preview}</div>
+                        for source in sources:
+                            source_name = source.get('source', 'Unknown Source')
+                            source_url = source.get('url', '')
+                            is_link = source.get('is_link', False)
+                            preview = source.get('page_content', '').replace('"', '&quot;').replace("'", "&#39;")
+                            
+                            if is_link and source_url:
+                                st.markdown(f"""
+                                <div class="source-card">
+                                    <a href="{source_url}" target="_blank" rel="noopener noreferrer" class="source-link">
+                                        <span class="source-domain">{source_name}</span>
+                                        <svg class="external-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                        </svg>
+                                    </a>
+                                </div>
+                                """, unsafe_allow_html=True)
+                            else:
+                                st.markdown(f"""
+                                <div class="source-card">
+                                    <div class="source-domain">{source_name}</div>
+                                    {f'<div class="source-preview">{preview}</div>' if preview else ''}
+                                </div>
+                                """, unsafe_allow_html=True)
+                        
+                        st.markdown("""
+                            </div>
                         </div>
-                        """
-                    
-                    sources_html += "</div></div>"
-                    st.markdown(sources_html, unsafe_allow_html=True)
+                        """, unsafe_allow_html=True)
                 
                 # Add elegant divider between conversation pairs
                 if i > 0:
